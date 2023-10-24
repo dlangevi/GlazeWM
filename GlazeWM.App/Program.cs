@@ -32,7 +32,7 @@ namespace GlazeWM.App
   {
     private const string AppGuid = "325d0ed7-7f60-4925-8d1b-aa287b26b218";
     private const int IpcServerPort = 6123;
-
+   
     /// <summary>
     /// The main entry point for the application. The thread must be an STA
     /// thread in order to run a message loop.

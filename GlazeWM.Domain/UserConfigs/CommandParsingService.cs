@@ -78,6 +78,7 @@ namespace GlazeWM.Domain.UserConfigs
           "layout" => ParseLayoutCommand(commandParts, subjectContainer),
           "focus" => ParseFocusCommand(commandParts),
           "move" => ParseMoveCommand(commandParts, subjectContainer),
+          "load" => ParseLoadCommand(commandParts, subjectContainer),
           "resize" => ParseResizeCommand(commandParts, subjectContainer),
           "set" => ParseSetCommand(commandParts, subjectContainer),
           "toggle" => ParseToggleCommand(commandParts, subjectContainer),
@@ -154,6 +155,16 @@ namespace GlazeWM.Domain.UserConfigs
         "prev" => new FocusWorkspaceSequenceCommand(Sequence.Previous),
         "next" => new FocusWorkspaceSequenceCommand(Sequence.Next),
         _ when IsValidWorkspace(commandParts[2]) => new FocusWorkspaceCommand(commandParts[2]),
+        _ => throw new ArgumentException(null, nameof(commandParts)),
+      };
+    }
+    
+    // "load" => ParseLoadCommand(commandParts, subjectContainer),
+    private Command ParseLoadCommand(string[] commandParts, Container subjectContainer)
+    {
+      return commandParts[1] switch
+      {
+        _ when IsValidWorkspace(commandParts[2]) => new LoadWorkspaceCommand(commandParts[2]),
         _ => throw new ArgumentException(null, nameof(commandParts)),
       };
     }
