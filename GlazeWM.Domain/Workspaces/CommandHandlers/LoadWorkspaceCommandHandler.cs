@@ -37,45 +37,52 @@ namespace GlazeWM.Domain.Workspaces.CommandHandlers
       // Workspace we want to move to (if exists)
       var sourceWorkspace = _workspaceService.GetActiveWorkspaceByName(workspaceName);
 
-
-
-      // If the source workspace already exists
-      if (sourceWorkspace is not null) {
-        // Get the source monitor pre move
-        var sourceMonitor = MonitorService.GetMonitorFromChildContainer(sourceWorkspace);
-
-        // Move workspace to focused monitor.
-        _bus.Invoke(
-          new MoveContainerWithinTreeCommand(sourceWorkspace, focusedMonitor, false)
-        );
-        // Focus workspace .
-        _bus.Invoke(
-          new FocusWorkspaceCommand(sourceWorkspace.Name)
-        );
-
-        // Update floating placement since the windows have to cross monitors.
-        foreach (var window in focusedWorkspace.Descendants.OfType<Window>())
-        {
-          window.FloatingPlacement = window.FloatingPlacement.TranslateToCenter(
-            focusedMonitor.DisplayedWorkspace.ToRect()
-          );
-        }
-        // Prevent original monitor from having no workspaces.
-        if (sourceMonitor.Children.Count == 0) {
-          ActivateWorkspaceOnMonitor(sourceMonitor);
-        }
-        // Update workspaces displayed in bar window.
-        // TODO: Consider creating separate event `WorkspaceMovedEvent`.
-        _bus.Emit(new WorkspaceActivatedEvent(sourceWorkspace));
-
-      } else {
-        // The source workspace has not been created
-        // A simple FocusWorkspace command should do what we want 
+      // Are on the same workspace already, so no worries
+      if (focusedWorkspace == sourceWorkspace)
+      {
         _bus.Invoke(
           new FocusWorkspaceCommand(command.WorkspaceName)
         );
+        return CommandResponse.Ok;
       }
 
+      if (sourceWorkspace is null)
+      {
+        _bus.Invoke(
+          new FocusWorkspaceCommand(command.WorkspaceName)
+        );
+        return CommandResponse.Ok;
+      }
+
+      // Get the source monitor pre move
+      var sourceMonitor = MonitorService.GetMonitorFromChildContainer(sourceWorkspace);
+
+      // Move workspace to focused monitor.
+      _bus.Invoke(
+        new MoveContainerWithinTreeCommand(sourceWorkspace, focusedMonitor, false)
+      );
+
+      var dpiDifference = MonitorService.HasDpiDifference(
+          focusedWorkspace, targetWorkspace);
+      // Update floating placement since the windows have to cross monitors.
+      foreach (var window in sourceWorkspace.Descendants.OfType<Window>())
+      {
+        window.FloatingPlacement = window.FloatingPlacement.TranslateToCenter(
+          focusedMonitor.DisplayedWorkspace.ToRect()
+        );
+      }
+      // TODO: There is still a bug with windows being drawn wrong
+      // the first time they are moved across the space.
+
+      // Focus workspace .
+      _bus.Invoke(
+        new FocusWorkspaceCommand(sourceWorkspace.Name)
+      );
+      // Prevent original monitor from having no workspaces.
+      if (sourceMonitor.Children.Count == 0)
+      {
+        ActivateWorkspaceOnMonitor(sourceMonitor);
+      }
       return CommandResponse.Ok;
     }
 
