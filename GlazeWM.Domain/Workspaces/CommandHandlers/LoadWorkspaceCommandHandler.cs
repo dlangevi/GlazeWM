@@ -1,5 +1,7 @@
 using System.Linq;
+using GlazeWM.Domain.Containers;
 using GlazeWM.Domain.Containers.Commands;
+using GlazeWM.Domain.Containers.Events;
 using GlazeWM.Domain.Monitors;
 using GlazeWM.Domain.Windows;
 using GlazeWM.Domain.Workspaces.Commands;
@@ -13,15 +15,18 @@ namespace GlazeWM.Domain.Workspaces.CommandHandlers
     ICommandHandler<LoadWorkspaceCommand>
   {
     private readonly Bus _bus;
+    private readonly ContainerService _containerService;
     private readonly MonitorService _monitorService;
     private readonly WorkspaceService _workspaceService;
 
     public LoadWorkspaceHandler(
       Bus bus,
+      ContainerService containerService,
       MonitorService monitorService,
       WorkspaceService workspaceService)
     {
       _bus = bus;
+      _containerService = containerService;
       _monitorService = monitorService;
       _workspaceService = workspaceService;
     }
@@ -57,27 +62,47 @@ namespace GlazeWM.Domain.Workspaces.CommandHandlers
       // Get the source monitor pre move
       var sourceMonitor = MonitorService.GetMonitorFromChildContainer(sourceWorkspace);
 
-      // Move workspace to focused monitor.
-      _bus.Invoke(
-        new MoveContainerWithinTreeCommand(sourceWorkspace, focusedMonitor, false)
-      );
-
       var dpiDifference = MonitorService.HasDpiDifference(
-          focusedWorkspace, targetWorkspace);
+          focusedWorkspace, sourceWorkspace);
       // Update floating placement since the windows have to cross monitors.
+      // TODO: There is still a bug with windows being drawn wrong
+      // the first time they are moved across the space.
+
       foreach (var window in sourceWorkspace.Descendants.OfType<Window>())
       {
+        if (dpiDifference)
+          window.HasPendingDpiAdjustment = true;
+
         window.FloatingPlacement = window.FloatingPlacement.TranslateToCenter(
           focusedMonitor.DisplayedWorkspace.ToRect()
         );
+        _containerService.ContainersToRedraw.Add(window);
       }
-      // TODO: There is still a bug with windows being drawn wrong
-      // the first time they are moved across the space.
+      foreach (var window in focusedWorkspace.Descendants.OfType<Window>())
+      {
+        if (dpiDifference)
+          window.HasPendingDpiAdjustment = true;
+
+        window.FloatingPlacement = window.FloatingPlacement.TranslateToCenter(
+          focusedMonitor.DisplayedWorkspace.ToRect()
+        );
+        _containerService.ContainersToRedraw.Add(window);
+      }
+
+      // Move workspace to focused monitor.
+      _bus.Invoke(
+        new MoveContainerWithinTreeCommand(sourceWorkspace, focusedMonitor, true)
+      );
 
       // Focus workspace .
       _bus.Invoke(
         new FocusWorkspaceCommand(sourceWorkspace.Name)
       );
+
+      _bus.Invoke(
+          new RedrawContainersCommand()
+      );
+
       // Prevent original monitor from having no workspaces.
       if (sourceMonitor.Children.Count == 0)
       {
